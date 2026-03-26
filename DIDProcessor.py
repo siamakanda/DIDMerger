@@ -253,6 +253,7 @@ class DIDProcessor:
         
         print("=" * 60)
     
+
     def generate_numbering_file(self, df: pd.DataFrame, prefix: str = "1") -> None:
         """Generate numbering file from merged data."""
         
@@ -271,7 +272,10 @@ class DIDProcessor:
         df_number = df[['Number']].copy().fillna(0).astype(int).astype(str)
         df_number['Number'] = prefix + df_number['Number']
         
-        # 2. Add metadata columns
+        # 2. Rename 'Number' column to 'did'
+        df_number = df_number.rename(columns={'Number': 'did'})
+        
+        # 3. Add metadata columns
         print("📝 Adding metadata...")
         df_number = df_number.assign(
             number_type='did',
@@ -280,18 +284,19 @@ class DIDProcessor:
             vendor_tier=1
         )
         
-        # 3. Generate filename and save
+        # 4. Generate filename and save
         output_filename = f"Numbering_File_{self.client_name}.csv"
         output_path = self.output_dir / output_filename
         
         print(f"💾 Saving numbering file: {output_filename}")
         df_number.to_csv(output_path, index=False)
         
-        # 4. Display numbering file summary
+        # 5. Display numbering file summary
         print("\n📊 Numbering File Summary:")
         print(f"   • Total entries: {len(df_number):,}")
         print(f"   • Prefix applied: '{prefix}'")
         print(f"   • Client tag: '{self.client_name}'")
+        print(f"   • Column headers: {list(df_number.columns)}")
         print(f"   • File size: {output_path.stat().st_size / 1024:.1f} KB")
         print(f"\n✅ Numbering file saved successfully!")
         print("=" * 60)
