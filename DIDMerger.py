@@ -13,6 +13,7 @@ class DIDMerger:
     def __init__(self):
         self.current_dir = Path.cwd()
         self.output_dir = self.current_dir / 'OUTPUT'
+        self.processed_dir = self.current_dir / 'PROCESSED'
         self.client_name = "General"
         self.csv_files = []
         self.merged_df = None
@@ -195,6 +196,39 @@ class DIDMerger:
         
         return output_path
     
+    def move_source_files(self):
+        """Move all source CSV files to PROCESSED folder after successful processing"""
+        print("\n📦 Organizing source files...")
+        
+        # Create PROCESSED directory if it doesn't exist
+        self.processed_dir.mkdir(exist_ok=True)
+        
+        moved_count = 0
+        for file_path in self.csv_files:
+            try:
+                # Create destination path
+                dest_path = self.processed_dir / file_path.name
+                
+                # If file already exists in PROCESSED, add timestamp to avoid overwriting
+                if dest_path.exists():
+                    timestamp = datetime.now().strftime("%H%M%S")
+                    new_name = f"{file_path.stem}_{timestamp}{file_path.suffix}"
+                    dest_path = self.processed_dir / new_name
+                    print(f"   ⚠️  File exists, renaming to: {new_name}")
+                
+                # Move the file
+                file_path.rename(dest_path)
+                moved_count += 1
+                print(f"   ✓ Moved: {file_path.name}")
+                
+            except Exception as e:
+                print(f"   ❌ Could not move {file_path.name}: {str(e)}")
+        
+        if moved_count > 0:
+            print(f"✅ Moved {moved_count} of {len(self.csv_files)} files to PROCESSED folder")
+        else:
+            print(f"⚠️ No files were moved")
+    
     def run(self):
         """Main execution"""
         print("\n" + "=" * 60)
@@ -242,7 +276,10 @@ class DIDMerger:
         # 7. Save numbering file (renames 'Number' to 'did' and adds prefix)
         self.save_numbering_file()
         
-        # 8. Complete
+        # 8. Move source files to PROCESSED folder
+        self.move_source_files()
+        
+        # 9. Complete
         print("\n" + "=" * 60)
         print("✅ PROCESS COMPLETED SUCCESSFULLY!")
         print("=" * 60)

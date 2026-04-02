@@ -1,5 +1,6 @@
-/dist
 /build
 /OUTPUT
+/PROCESSED
+venv
 *.csv
-DIDMerge.spec
+/DIDMerge.spec
