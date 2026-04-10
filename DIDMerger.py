@@ -133,21 +133,96 @@ class DIDMerger:
         print(f"   Size: {file_size:.1f} KB")
         return output_path
     
+
+    def detect_did_numbers(self, df):
+        """Scan dataframe for 10 or 11 digit numbers to use as DIDs"""
+        print("\n🔍 Scanning for DID numbers...")
+        
+        did_numbers = []
+        source_columns = []
+        
+        # Define regex patterns for phone numbers
+        import re
+        ten_digit_pattern = r'\b\d{10}\b'      # Exactly 10 digits
+        eleven_digit_pattern = r'\b\d{11}\b'   # Exactly 11 digits
+        
+        # Scan each column
+        for col in df.columns:
+            found_in_col = []
+            
+            for value in df[col].dropna():
+                value_str = str(value).strip()
+                
+                # Check for 10 digit numbers
+                if re.match(ten_digit_pattern, value_str):
+                    # 10 digit number - add prefix '1' later
+                    did_numbers.append(value_str)
+                    found_in_col.append(value_str)
+                
+                # Check for 11 digit numbers
+                elif re.match(eleven_digit_pattern, value_str):
+                    # 11 digit number - check if starts with 1
+                    if value_str.startswith('1'):
+                        # Remove leading 1, will add back with prefix
+                        did_numbers.append(value_str[1:])
+                        found_in_col.append(f"{value_str} → {value_str[1:]}")
+                    else:
+                        # Keep as is (unlikely but possible)
+                        did_numbers.append(value_str)
+                        found_in_col.append(value_str)
+            
+            if found_in_col:
+                source_columns.append(f"  • Column '{col}': Found {len(found_in_col)} numbers")
+        
+        # Remove duplicates while preserving order
+        unique_dids = []
+        for did in did_numbers:
+            if did not in unique_dids:
+                unique_dids.append(did)
+        
+        # Show results
+        if source_columns:
+            print(f"✅ Found {len(unique_dids)} unique DID numbers:")
+            for col_info in source_columns[:5]:  # Show first 5 columns
+                print(col_info)
+            if len(source_columns) > 5:
+                print(f"  • ... and {len(source_columns) - 5} more columns")
+        else:
+            print("❌ No 10 or 11 digit numbers found in any column!")
+            return None
+        
+        return unique_dids
+
     def save_numbering_file(self):
-        """Generate and save numbering file"""
+        """Generate and save numbering file - with intelligent DID detection"""
         print("\n🔢 Generating numbering file...")
         
-        # Check if 'Number' column exists in merged data
-        if 'Number' not in self.merged_df.columns:
-            print(f"\n❌ Error: 'Number' column not found in merged data!")
-            print(f"   Available columns: {list(self.merged_df.columns)}")
-            return None
+        # Check if 'Number' column exists
+        if 'Number' in self.merged_df.columns:
+            print("✅ Using 'Number' column for DIDs")
+            source_numbers = self.merged_df['Number']
+            
+        else:
+            print("⚠️  'Number' column not found!")
+            print("   Scanning all columns for 10 or 11 digit numbers...")
+            
+            # Detect DIDs from entire dataframe
+            detected_dids = self.detect_did_numbers(self.merged_df)
+            
+            if detected_dids is None:
+                print("\n❌ Error: No valid DID numbers found in any column!")
+                print("   Please ensure your CSV files contain a 'Number' column")
+                print("   or 10/11 digit phone numbers in other columns.")
+                return None
+            
+            source_numbers = pd.Series(detected_dids)
+            print(f"\n✅ Using {len(source_numbers)} detected DIDs for numbering file")
         
         # Create numbering dataframe with only the required columns
         df_number = pd.DataFrame()
         
-        # Take the 'Number' column, rename to 'did', clean it, and add prefix
-        df_number['did'] = pd.to_numeric(self.merged_df['Number'], errors='coerce').fillna(0).astype(int).astype(str)
+        # Clean and prefix the numbers
+        df_number['did'] = pd.to_numeric(source_numbers, errors='coerce').fillna(0).astype(int).astype(str)
         df_number['did'] = '1' + df_number['did']  # Add prefix "1" to all DIDs
         
         # Add the other required columns
@@ -156,9 +231,13 @@ class DIDMerger:
         df_number['customer_tier'] = 1
         df_number['vendor_tier'] = 1
         
+        # Remove any invalid entries (where prefix addition failed)
+        df_number = df_number[df_number['did'].str.len() >= 11]
+        
+        # Rest of the method remains the same...
         # Get current date in ISO format
         now = datetime.now()
-        date_str = now.strftime("%Y-%m-%d")  # YYYY-MM-DD format
+        date_str = now.strftime("%Y-%m-%d")
         
         # Calculate row count
         row_count = len(df_number)
@@ -167,30 +246,28 @@ class DIDMerger:
         client_display = self.abbreviate_client_name(self.client_name)
         client_display = self.safe_filename(client_display)
         
-        # Create filename with spaces instead of underscores (add NUM for numbering file)
+        # Create filename
         filename = f"{client_display} NUM {date_str} {row_count}DIDs.csv"
         
         # Ensure total filename length is under 100 characters
         if len(filename) > 100:
-            # Further abbreviate client name
             client_display = self.abbreviate_client_name(self.client_name, max_length=8)
             client_display = self.safe_filename(client_display)
             filename = f"{client_display} NUM {date_str} {row_count}DIDs.csv"
-            # If still too long, truncate
             if len(filename) > 100:
                 filename = filename[:97] + ".csv"
         
         output_path = self.output_dir / filename
         
         # Save
-        print(f"💾 Saving numbering file: {filename}")
+        print(f"\n💾 Saving numbering file: {filename}")
         df_number.to_csv(output_path, index=False)
         
         # Show file size
-        file_size = output_path.stat().st_size / 1024  # KB
+        file_size = output_path.stat().st_size / 1024
         print(f"   Size: {file_size:.1f} KB")
         
-        # Show preview of first 10 rows
+        # Show preview
         print("\n📄 Preview of numbering file (first 10 rows):")
         print(df_number.head(10).to_string(index=False))
         
