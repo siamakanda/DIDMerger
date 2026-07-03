@@ -1,6 +1,11 @@
 /build
+/dist
 /OUTPUT
 /PROCESSED
 venv
 *.csv
-/DIDMerge.spec
+*.pyc
+__pycache__/
+*.spec
+.DS_Store
+.commandcode/

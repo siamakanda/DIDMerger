@@ -218,23 +218,26 @@ class DIDMerger:
             source_numbers = pd.Series(detected_dids)
             print(f"\n✅ Using {len(source_numbers)} detected DIDs for numbering file")
         
-        # Create numbering dataframe with only the required columns
+        # Create numbering dataframe matching the upload template format
         df_number = pd.DataFrame()
         
         # Clean and prefix the numbers
-        df_number['did'] = pd.to_numeric(source_numbers, errors='coerce').fillna(0).astype(int).astype(str)
-        df_number['did'] = '1' + df_number['did']  # Add prefix "1" to all DIDs
+        df_number['number'] = pd.to_numeric(source_numbers, errors='coerce').fillna(0).astype(int).astype(str)
+        df_number['number'] = '1' + df_number['number']  # Add prefix "1" to all DIDs
         
-        # Add the other required columns
-        df_number['number_type'] = 'did'
-        df_number['tag'] = self.client_name
-        df_number['customer_tier'] = 1
-        df_number['vendor_tier'] = 1
+        # Add the upload template columns with defaults
+        df_number['mrc'] = 0
+        df_number['nrc'] = 0
+        df_number['route_type'] = 'trunk'
+        df_number['max_channels'] = 100
+        df_number['ani_mode'] = 'off'
+        df_number['ani_value'] = ''
+        df_number['dnis_mode'] = 'off'
+        df_number['dnis_value'] = ''
         
         # Remove any invalid entries (where prefix addition failed)
-        df_number = df_number[df_number['did'].str.len() >= 11]
+        df_number = df_number[df_number['number'].str.len() >= 11]
         
-        # Rest of the method remains the same...
         # Get current date in ISO format
         now = datetime.now()
         date_str = now.strftime("%Y-%m-%d")
